@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { ArrowRight, RefreshCw } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { useLocales } from '../hooks/useLocales'
-// actually we should probably pass exchange rate via NUI "updatePlayerData". For simplicity I'll use a const here that matches config.
+import { fetchNui } from '../utils/fetchNui'
 
-const EXCHANGE_RATE = 1000 // Mocking config here manually for UI feedback. ideally passed from server.
+// Exchange rate from config - should match server config
+const EXCHANGE_RATE = 1000
 
 export const ExchangeView = () => {
     const { user } = useAppStore()
@@ -75,12 +76,15 @@ export const ExchangeView = () => {
                     <button
                         onClick={() => {
                             if (amount > 0) {
-                                import('../utils/fetchNui').then(({ fetchNui }) => {
-                                    fetchNui('exchangeMoney', { amount })
-                                })
+                                fetchNui('exchangeMoney', { amount })
                             }
                         }}
                         className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 font-bold text-lg hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-200 flex items-center justify-center gap-2"
+                        disabled={amount === 0 || amount > user.money}
+                        style={{
+                            opacity: amount === 0 || amount > user.money ? 0.5 : 1,
+                            cursor: amount === 0 || amount > user.money ? 'not-allowed' : 'pointer'
+                        }}
                     >
                         <RefreshCw size={20} />
                         {t.exchange.confirm_btn}

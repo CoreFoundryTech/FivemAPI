@@ -315,10 +315,45 @@ RegisterNetEvent('caserio_marketplace:buyVehicle', function(data)
     
     -- Insertar vehículo
     local hash = GetHashKey(model)
+    local license = QBCore.Functions.GetIdentifier(src, 'license')
+    
+    -- Mods por defecto (vehículo sin modificaciones)
+    local defaultMods = json.encode({
+        modEngine = -1,
+        modBrakes = -1,
+        modTransmission = -1,
+        modSuspension = -1,
+        modArmor = -1,
+        modTurbo = false,
+        modXenon = false,
+        windowTint = -1,
+        plateIndex = 0,
+        color1 = 0,
+        color2 = 0,
+        pearlescentColor = 0,
+        wheelColor = 0,
+        wheels = 0,
+        neonEnabled = {false, false, false, false},
+        neonColor = {255, 255, 255},
+        tyreSmokeColor = {255, 255, 255},
+        extras = {}
+    })
+    
+    -- Status por defecto
+    local defaultStatus = json.encode({
+        fuel = 100,
+        body = 100,
+        engine = 100,
+        radiator = 100,
+        axle = 100,
+        brakes = 100,
+        clutch = 100
+    })
+    
     local insertResult = MySQL.insert.await([[
-        INSERT INTO player_vehicles (citizenid, vehicle, hash, plate, garage, state, fuel, engine, body)
-        VALUES (?, ?, ?, ?, ?, 1, 100, 1000.0, 1000.0)
-    ]], {citizenid, model, hash, plate, Config.DefaultGarage})
+        INSERT INTO player_vehicles (license, citizenid, vehicle, hash, mods, plate, garage, state, fuel, engine, body, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 100, 1000.0, 1000.0, ?)
+    ]], {license, citizenid, model, hash, defaultMods, plate, Config.DefaultGarage, defaultStatus})
     
     if insertResult then
         CompleteTransaction(txnId)
@@ -510,4 +545,346 @@ RegisterCommand('myid', function(source, args, rawCommand)
         print('Coins: ' .. Player.Functions.GetMoney('coins'))
         print('========================')
     end
+end)
+
+-- ============================================
+-- PAYMENT STATUS NOTIFICATIONS
+-- ============================================
+
+local function SendPaymentStatus(src, status, data)
+    TriggerClientEvent('caserio_marketplace:paymentStatus', src, {
+        status = status,
+        txnId = data.txnId,
+        amount = data.amount,
+        message = data.message
+    })
+end
+
+-- ============================================
+-- P2P MARKETPLACE - LISTINGS
+-- ============================================
+
+-- Obtener listings activos
+RegisterNetEvent('caserio_marketplace:getActiveListings', function()
+    local src = source
+    
+    local listings = MySQL.query.await([[
+        SELECT * FROM caserio_listings WHERE status = 'ACTIVE' ORDER BY created_at DESC
+    ]])
+    
+    TriggerClientEvent('caserio_marketplace:receiveListings', src, listings or {})
+end)
+
+-- Obtener mis listings
+RegisterNetEvent('caserio_marketplace:getMyListings', function()
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local citizenid = Player.PlayerData.citizenid
+    
+    local listings = MySQL.query.await([[
+        SELECT * FROM caserio_listings WHERE seller_citizenid = ? ORDER BY created_at DESC
+    ]], {citizenid})
+    
+    TriggerClientEvent('caserio_marketplace:receiveMyListings', src, listings or {})
+end)
+
+-- Obtener mis vehículos disponibles para vender
+RegisterNetEvent('caserio_marketplace:getMyVehicles', function()
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local citizenid = Player.PlayerData.citizenid
+    
+    -- Todos los vehículos excepto los que están en venta (state != 2)
+    local vehicles = MySQL.query.await([[
+        SELECT id, vehicle, plate, mods, state FROM player_vehicles 
+        WHERE citizenid = ? AND state != 2
+    ]], {citizenid})
+    
+    TriggerClientEvent('caserio_marketplace:receiveMyVehicles', src, vehicles or {})
+end)
+
+-- Crear listing de vehículo
+RegisterNetEvent('caserio_marketplace:createVehicleListing', function(data)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local vehicleId = tonumber(data.vehicleId)
+    local price = tonumber(data.price)
+    
+    if not vehicleId or not price or price < 1 then
+        TriggerClientEvent('QBCore:Notify', src, 'Datos inválidos.', 'error')
+        return
+    end
+    
+    local citizenid = Player.PlayerData.citizenid
+    local sellerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+    
+    -- Verificar que el vehículo es del jugador y está disponible
+    local vehicle = MySQL.query.await([[
+        SELECT * FROM player_vehicles WHERE id = ? AND citizenid = ? AND state = 1
+    ]], {vehicleId, citizenid})
+    
+    if not vehicle or #vehicle == 0 then
+        TriggerClientEvent('QBCore:Notify', src, 'Vehículo no disponible.', 'error')
+        return
+    end
+    
+    local veh = vehicle[1]
+    
+    -- Crear listing
+    MySQL.insert.await([[
+        INSERT INTO caserio_listings (seller_citizenid, seller_name, type, item_data, price)
+        VALUES (?, ?, 'vehicle', ?, ?)
+    ]], {citizenid, sellerName, json.encode({
+        vehicle_id = veh.id,
+        model = veh.vehicle,
+        plate = veh.plate,
+        mods = veh.mods
+    }), price})
+    
+    -- Bloquear vehículo (state = 2 = en venta)
+    MySQL.update.await('UPDATE player_vehicles SET state = 2 WHERE id = ?', {vehicleId})
+    
+    TriggerClientEvent('QBCore:Notify', src, 'Vehículo publicado por ' .. price .. ' coins.', 'success')
+    print('[Caserio] Listing creado: ' .. veh.vehicle .. ' (' .. veh.plate .. ') por ' .. price .. ' coins')
+end)
+
+-- Cancelar listing
+RegisterNetEvent('caserio_marketplace:cancelListing', function(listingId)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local citizenid = Player.PlayerData.citizenid
+    
+    -- Verificar que es el dueño del listing
+    local listing = MySQL.query.await([[
+        SELECT * FROM caserio_listings WHERE id = ? AND seller_citizenid = ? AND status = 'ACTIVE'
+    ]], {listingId, citizenid})
+    
+    if not listing or #listing == 0 then
+        TriggerClientEvent('QBCore:Notify', src, 'Listing no encontrado.', 'error')
+        return
+    end
+    
+    local item = listing[1]
+    local itemData = json.decode(item.item_data)
+    
+    -- Cancelar listing
+    MySQL.update.await('UPDATE caserio_listings SET status = ? WHERE id = ?', {'CANCELLED', listingId})
+    
+    -- Si es vehículo, desbloquear (state = 1)
+    if item.type == 'vehicle' and itemData.vehicle_id then
+        MySQL.update.await('UPDATE player_vehicles SET state = 1 WHERE id = ?', {itemData.vehicle_id})
+    end
+    
+    -- Si es arma, devolver al inventario
+    if item.type == 'weapon' and itemData.item then
+        local metadata = {}
+        if itemData.tint then metadata.tint = itemData.tint end
+        if itemData.attachments then metadata.attachments = itemData.attachments end
+        
+        Player.Functions.AddItem(itemData.item, 1, false, metadata)
+    end
+    
+    TriggerClientEvent('QBCore:Notify', src, 'Publicación cancelada.', 'success')
+end)
+
+-- Obtener mis armas disponibles para vender
+RegisterNetEvent('caserio_marketplace:getMyWeapons', function()
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local weapons = {}
+    
+    -- Obtener ítems del inventario que sean armas
+    for slot, item in pairs(Player.PlayerData.items) do
+        if item and item.name and string.find(item.name, 'weapon_') then
+            table.insert(weapons, {
+                slot = slot,
+                item = item.name,
+                label = item.label or item.name,
+                tint = item.info and item.info.tint or nil,
+                attachments = item.info and item.info.attachments or nil,
+                amount = item.amount or 1
+            })
+        end
+    end
+    
+    TriggerClientEvent('caserio_marketplace:receiveMyWeapons', src, weapons)
+end)
+
+-- Crear listing de arma
+RegisterNetEvent('caserio_marketplace:createWeaponListing', function(data)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local weaponSlot = tonumber(data.weaponSlot)
+    local price = tonumber(data.price)
+    
+    if not weaponSlot or not price or price < 1 then
+        TriggerClientEvent('QBCore:Notify', src, 'Datos inválidos.', 'error')
+        return
+    end
+    
+    local citizenid = Player.PlayerData.citizenid
+    local sellerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+    
+    -- Obtener arma del inventario
+    local weapon = Player.PlayerData.items[weaponSlot]
+    
+    if not weapon or not string.find(weapon.name, 'weapon_') then
+        TriggerClientEvent('QBCore:Notify', src, 'Arma no encontrada.', 'error')
+        return
+    end
+    
+    -- Crear listing
+    MySQL.insert.await([[
+        INSERT INTO caserio_listings (seller_citizenid, seller_name, type, item_data, price)
+        VALUES (?, ?, 'weapon', ?, ?)
+    ]], {citizenid, sellerName, json.encode({
+        item = weapon.name,
+        label = weapon.label or weapon.name,
+        tint = weapon.info and weapon.info.tint or nil,
+        attachments = weapon.info and weapon.info.attachments or nil
+    }), price})
+    
+    -- Quitar arma del inventario
+    Player.Functions.RemoveItem(weapon.name, 1, weaponSlot)
+    
+    TriggerClientEvent('QBCore:Notify', src, 'Arma publicada por ' .. price .. ' coins.', 'success')
+    print('[Caserio] Listing arma creado: ' .. weapon.name .. ' por ' .. price .. ' coins')
+end)
+
+-- Comprar listing
+RegisterNetEvent('caserio_marketplace:buyListing', function(data)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local listingId = data.listingId
+    local customPlate = data.customPlate -- Opcional para vehículos
+    
+    local buyerCitizenid = Player.PlayerData.citizenid
+    local buyerLicense = QBCore.Functions.GetIdentifier(src, 'license')
+    
+    -- Obtener listing
+    local listing = MySQL.query.await([[
+        SELECT * FROM caserio_listings WHERE id = ? AND status = 'ACTIVE'
+    ]], {listingId})
+    
+    if not listing or #listing == 0 then
+        TriggerClientEvent('QBCore:Notify', src, 'Este item ya no está disponible.', 'error')
+        return
+    end
+    
+    local item = listing[1]
+    local price = item.price
+    local sellerCitizenid = item.seller_citizenid
+    local itemData = json.decode(item.item_data)
+    
+    -- No puedes comprar tu propio listing
+    if sellerCitizenid == buyerCitizenid then
+        TriggerClientEvent('QBCore:Notify', src, 'No puedes comprar tu propia publicación.', 'error')
+        return
+    end
+    
+    -- Verificar coins
+    if Player.Functions.GetMoney('coins') < price then
+        TriggerClientEvent('QBCore:Notify', src, 'No tienes suficientes coins.', 'error')
+        return
+    end
+    
+    -- Crear transacción de auditoría
+    local txnId = CreateTransaction(buyerCitizenid, item.type == 'vehicle' and 'buy_vehicle' or 'buy_weapon', {
+        listing_id = listingId,
+        from = sellerCitizenid,
+        item = itemData.model or itemData.item,
+        price = price
+    }, price)
+    
+    SendPaymentStatus(src, 'processing', {txnId = txnId, amount = price, message = 'Procesando compra...'})
+    
+    -- Quitar coins al comprador
+    local itemName = itemData.model or itemData.label or itemData.item
+    if not Player.Functions.RemoveMoney('coins', price, 'Compra P2P: ' .. itemName) then
+        FailTransaction(txnId, 'Error al quitar coins')
+        TriggerClientEvent('QBCore:Notify', src, 'Error al procesar pago.', 'error')
+        return
+    end
+    
+    -- Calcular comisión (5%)
+    local commission = math.floor(price * 0.05)
+    local sellerAmount = price - commission
+    
+    -- Dar coins al vendedor (menos comisión)
+    local Seller = QBCore.Functions.GetPlayerByCitizenId(sellerCitizenid)
+    if Seller then
+        Seller.Functions.AddMoney('coins', sellerAmount, 'Venta P2P: ' .. itemName)
+        TriggerClientEvent('QBCore:Notify', Seller.PlayerData.source, '¡Vendiste tu ' .. itemName .. ' por ' .. sellerAmount .. ' coins!', 'success')
+    else
+        -- Vendedor offline, guardar como pendiente
+        AddPendingCoins(sellerCitizenid, sellerAmount)
+    end
+    
+    -- Transferir item según tipo
+    if item.type == 'vehicle' and itemData.vehicle_id then
+        -- Si hay patente personalizada, validar
+        local finalPlate = itemData.plate
+        
+        if customPlate and customPlate ~= '' then
+            customPlate = customPlate:upper()
+            
+            -- Validar longitud y caracteres
+            if #customPlate > 8 then
+                customPlate = customPlate:sub(1, 8)
+            end
+            
+            if customPlate:match('^[A-Z0-9]+$') then
+                -- Verificar disponibilidad
+                local plateExists = MySQL.scalar.await('SELECT 1 FROM player_vehicles WHERE plate = ?', {customPlate})
+                
+                if not plateExists then
+                    finalPlate = customPlate
+                else
+                    TriggerClientEvent('QBCore:Notify', src, 'Patente ocupada, se usará la original: ' .. finalPlate, 'warning')
+                end
+            end
+        end
+        
+        -- Transferir vehículo
+        MySQL.update.await([[
+            UPDATE player_vehicles SET citizenid = ?, license = ?, state = 1, plate = ? WHERE id = ?
+        ]], {buyerCitizenid, buyerLicense, finalPlate, itemData.vehicle_id})
+        
+        TriggerClientEvent('QBCore:Notify', src, '¡Compraste ' .. itemData.model .. ' (Patente: ' .. finalPlate .. ')!', 'success')
+        
+    elseif item.type == 'weapon' and itemData.item then
+        -- Transferir arma al inventario
+        local metadata = {}
+        if itemData.tint then metadata.tint = itemData.tint end
+        if itemData.attachments then metadata.attachments = itemData.attachments end
+        
+        Player.Functions.AddItem(itemData.item, 1, false, metadata)
+        TriggerClientEvent('QBCore:Notify', src, '¡Compraste ' .. itemData.label .. '!', 'success')
+    end
+    
+    -- Marcar listing como vendido
+    MySQL.update.await([[
+        UPDATE caserio_listings SET status = 'SOLD', sold_at = NOW(), buyer_citizenid = ? WHERE id = ?
+    ]], {buyerCitizenid, listingId})
+    
+    CompleteTransaction(txnId)
+    
+    SendPaymentStatus(src, 'completed', {txnId = txnId, amount = price, message = '¡Compra completada!'})
+    UpdateClientUI(Player)
+    
+    print('[Caserio] P2P Venta: ' .. itemName .. ' de ' .. sellerCitizenid .. ' a ' .. buyerCitizenid .. ' por ' .. price .. ' (Comisión: ' .. commission .. ')')
 end)

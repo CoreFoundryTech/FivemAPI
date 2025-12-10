@@ -114,3 +114,96 @@ RegisterNetEvent('caserio_marketplace:updateData', function(data)
         })
     end
 end)
+
+-- ============================================
+-- PAYMENT STATUS (Toast notifications)
+-- ============================================
+
+RegisterNetEvent('caserio_marketplace:paymentStatus', function(data)
+    SendNUIMessage({
+        action = 'paymentStatus',
+        data = data
+    })
+end)
+
+-- ============================================
+-- P2P MARKETPLACE CALLBACKS
+-- ============================================
+
+RegisterNUICallback('getActiveListings', function(_, cb)
+    TriggerServerEvent('caserio_marketplace:getActiveListings')
+    cb({})
+end)
+
+RegisterNUICallback('getMyListings', function(_, cb)
+    TriggerServerEvent('caserio_marketplace:getMyListings')
+    cb({})
+end)
+
+RegisterNUICallback('getMyVehicles', function(_, cb)
+    TriggerServerEvent('caserio_marketplace:getMyVehicles')
+    cb({})
+end)
+
+RegisterNUICallback('getMyWeapons', function(_, cb)
+    TriggerServerEvent('caserio_marketplace:getMyWeapons')
+    cb({})
+end)
+
+RegisterNUICallback('createVehicleListing', function(data, cb)
+    TriggerServerEvent('caserio_marketplace:createVehicleListing', {
+        vehicleId = data.vehicleId,
+        price = data.price
+    })
+    cb({})
+end)
+
+RegisterNUICallback('createWeaponListing', function(data, cb)
+    TriggerServerEvent('caserio_marketplace:createWeaponListing', {
+        weaponSlot = data.weaponSlot,
+        price = data.price
+    })
+    cb({})
+end)
+
+RegisterNUICallback('cancelListing', function(data, cb)
+    TriggerServerEvent('caserio_marketplace:cancelListing', data.listingId)
+    cb({})
+end)
+
+RegisterNUICallback('buyListing', function(data, cb)
+    TriggerServerEvent('caserio_marketplace:buyListing', {
+        listingId = data.listingId,
+        customPlate = data.customPlate
+    })
+    cb({})
+end)
+
+-- Server sends listings data
+RegisterNetEvent('caserio_marketplace:receiveListings', function(listings)
+    SendNUIMessage({
+        action = 'receiveListings',
+        data = listings
+    })
+end)
+
+RegisterNetEvent('caserio_marketplace:receiveMyListings', function(listings)
+    SendNUIMessage({
+        action = 'receiveMyListings',
+        data = listings
+    })
+end)
+
+RegisterNetEvent('caserio_marketplace:receiveMyVehicles', function(vehicles)
+    SendNUIMessage({
+        action = 'receiveMyVehicles',
+        data = vehicles
+    })
+end)
+
+RegisterNetEvent('caserio_marketplace:receiveMyWeapons', function(weapons)
+    SendNUIMessage({
+        action = 'receiveMyWeapons',
+        data = weapons
+    })
+end)

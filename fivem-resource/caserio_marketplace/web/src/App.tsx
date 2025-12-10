@@ -12,6 +12,9 @@ import { ShopView } from './views/ShopView'
 import { ExchangeView } from './views/ExchangeView'
 import { MarketplaceView } from './views/MarketplaceView'
 
+// Components
+import { PaymentStatusToast } from './components/PaymentStatusToast'
+
 import { useNuiEvent } from './hooks/useNuiEvent'
 
 import './index.css'
@@ -65,6 +68,7 @@ function App() {
 
   return (
     <VisibilityProvider>
+      <PaymentStatusToast />
       <div className="flex h-screen w-screen items-center justify-center font-sans">
         <Layout>
           <div
