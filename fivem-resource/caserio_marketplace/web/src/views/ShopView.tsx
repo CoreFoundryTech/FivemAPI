@@ -1,52 +1,44 @@
-import { useState } from 'react'
-import { Car, Crosshair } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Car, Crosshair, Plus, Settings, Trash2 } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { useLocales } from '../hooks/useLocales'
 import { fetchNui } from '../utils/fetchNui'
-import { VehicleCard, WeaponCard, VehiclePurchaseModal, WeaponPurchaseModal } from '../components/shop'
-
-// Vehicle and Weapon types
-interface Vehicle {
-    id: string
-    label: string
-    price: number
-    model: string
-    category: string
-}
-
-interface Weapon {
-    id: string
-    label: string
-    price: number
-    item: string
-    tint?: number
-    attachments?: string[]
-}
-
-// Sample data - in production this would come from config via NUI
-const VEHICLES: Vehicle[] = [
-    { id: 'adder', label: 'Adder', price: 50000, model: 'adder', category: 'supercar' },
-    { id: 'zentorno', label: 'Zentorno', price: 45000, model: 'zentorno', category: 'supercar' },
-    { id: 'insurgent', label: 'Insurgent', price: 80000, model: 'insurgent', category: 'military' },
-    { id: 'sultanrs', label: 'Sultan RS', price: 25000, model: 'sultanrs', category: 'sports' },
-]
-
-const WEAPONS: Weapon[] = [
-    { id: 'pistol', label: 'Pistola', price: 500, item: 'weapon_pistol' },
-    { id: 'smg', label: 'SMG', price: 2000, item: 'weapon_smg' },
-    { id: 'carbine', label: 'Carabina', price: 5000, item: 'weapon_carbinerifle' },
-    { id: 'pistol_gold', label: 'Pistola Dorada', price: 3000, item: 'weapon_pistol', tint: 5 },
-    { id: 'pistol_pink', label: 'Pistola Rosa', price: 2500, item: 'weapon_pistol', tint: 6 },
-    { id: 'smg_silenced', label: 'SMG Silenciada', price: 4000, item: 'weapon_smg', attachments: ['Silenciador'] },
-    { id: 'carbine_tactical', label: 'Carabina Táctica', price: 10000, item: 'weapon_carbinerifle', attachments: ['Silenciador', 'Linterna', 'Mira'], tint: 1 },
-]
+import { VehicleCard, WeaponCard, VehiclePurchaseModal, WeaponPurchaseModal, AdminItemModal } from '../components/shop'
 
 export const ShopView = () => {
     const [activeCategory, setActiveCategory] = useState<'vehicles' | 'weapons'>('vehicles')
-    const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
-    const [selectedWeapon, setSelectedWeapon] = useState<Weapon | null>(null)
+    const [shopItems, setShopItems] = useState<any[]>([])
+    const [selectedItem, setSelectedItem] = useState<any | null>(null)
+    const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
+    const [adminModalMode, setAdminModalMode] = useState<'add' | 'edit'>('add')
+    const [itemToEdit, setItemToEdit] = useState<any>(null)
+
     const { user } = useAppStore()
     const { t } = useLocales()
+
+    const loadItems = async () => {
+        try {
+            const items = await fetchNui<any[]>('getShopItems')
+            setShopItems(items || [])
+        } catch (e) {
+            console.error('Failed to load shop items', e)
+        }
+    }
+
+    useEffect(() => {
+        loadItems()
+
+        const handleRefresh = (event: MessageEvent) => {
+            if (event.data.action === 'shopItemsUpdated') {
+                loadItems()
+            }
+        }
+        window.addEventListener('message', handleRefresh)
+        return () => window.removeEventListener('message', handleRefresh)
+    }, [])
+
+    const vehicles = shopItems.filter(i => i.type === 'vehicle')
+    const weapons = shopItems.filter(i => i.type === 'weapon')
 
     const categories = [
         { id: 'vehicles' as const, label: 'Vehículos', icon: Car },
@@ -54,22 +46,25 @@ export const ShopView = () => {
     ]
 
     const handleBuyVehicle = async (plate: string) => {
-        if (!selectedVehicle) return
-
-        await fetchNui('buyVehicle', {
-            vehicleId: selectedVehicle.id,
-            plate: plate
-        })
-        setSelectedVehicle(null)
+        if (!selectedItem) return
+        await fetchNui('buyVehicle', { vehicleId: selectedItem.item_id, plate: plate })
+        setSelectedItem(null)
     }
 
     const handleBuyWeapon = async () => {
-        if (!selectedWeapon) return
+        if (!selectedItem) return
+        await fetchNui('buyWeapon', { weaponId: selectedItem.item_id })
+        setSelectedItem(null)
+    }
 
-        await fetchNui('buyWeapon', {
-            weaponId: selectedWeapon.id
-        })
-        setSelectedWeapon(null)
+    const handleEditItem = (item: any) => {
+        setItemToEdit(item)
+        setAdminModalMode('edit')
+        setIsAdminModalOpen(true)
+    }
+
+    const handleDeleteItem = async (itemId: string) => {
+        await fetchNui('deleteShopItem', { itemId })
     }
 
     return (
@@ -104,46 +99,90 @@ export const ShopView = () => {
                 ))}
             </div>
 
-            {/* Vehicles Grid */}
-            {activeCategory === 'vehicles' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto pb-20 custom-scrollbar">
-                    {VEHICLES.map(vehicle => (
-                        <VehicleCard
-                            key={vehicle.id}
-                            vehicle={vehicle}
-                            onBuy={setSelectedVehicle}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {/* Weapons Grid */}
-            {activeCategory === 'weapons' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto pb-20 custom-scrollbar">
-                    {WEAPONS.map(weapon => (
-                        <WeaponCard
-                            key={weapon.id}
-                            weapon={weapon}
-                            onBuy={setSelectedWeapon}
-                        />
-                    ))}
-                </div>
-            )}
+            {/* Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto pb-20 custom-scrollbar">
+                {activeCategory === 'vehicles' ? (
+                    vehicles.map(v => (
+                        <div key={v.id} className="relative group">
+                            <VehicleCard
+                                vehicle={{ ...v, id: v.item_id }}
+                                onBuy={() => setSelectedItem(v)}
+                            />
+                            {user.isAdmin && (
+                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleEditItem(v)} className="p-1.5 bg-blue-500 rounded-md hover:bg-blue-600 shadow-md text-white mr-1"><Settings size={14} /></button>
+                                    <button onClick={() => handleDeleteItem(v.item_id)} className="p-1.5 bg-red-500 rounded-md hover:bg-red-600 shadow-md text-white"><Trash2 size={14} /></button>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                ) : (
+                    weapons.map(w => (
+                        <div key={w.id} className="relative group">
+                            <WeaponCard
+                                weapon={{
+                                    ...w,
+                                    id: w.item_id,
+                                    item: w.model,
+                                    attachments: w.item_data ? JSON.parse(w.item_data).attachments : []
+                                }}
+                                onBuy={() => setSelectedItem(w)}
+                            />
+                            {user.isAdmin && (
+                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleEditItem(w)} className="p-1.5 bg-blue-500 rounded-md hover:bg-blue-600 shadow-md text-white mr-1"><Settings size={14} /></button>
+                                    <button onClick={() => handleDeleteItem(w.item_id)} className="p-1.5 bg-red-500 rounded-md hover:bg-red-600 shadow-md text-white"><Trash2 size={14} /></button>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
+            </div>
 
             {/* Purchase Modals */}
-            <VehiclePurchaseModal
-                vehicle={selectedVehicle}
-                userCoins={user.coins}
-                onClose={() => setSelectedVehicle(null)}
-                onConfirm={handleBuyVehicle}
-            />
+            {activeCategory === 'vehicles' && (
+                <VehiclePurchaseModal
+                    vehicle={selectedItem}
+                    userCoins={user.coins}
+                    onClose={() => setSelectedItem(null)}
+                    onConfirm={handleBuyVehicle}
+                />
+            )}
 
-            <WeaponPurchaseModal
-                weapon={selectedWeapon}
-                userCoins={user.coins}
-                onClose={() => setSelectedWeapon(null)}
-                onConfirm={handleBuyWeapon}
-            />
+            {activeCategory === 'weapons' && (
+                <WeaponPurchaseModal
+                    weapon={selectedItem}
+                    userCoins={user.coins}
+                    onClose={() => setSelectedItem(null)}
+                    onConfirm={handleBuyWeapon}
+                />
+            )}
+
+            {/* Admin Add Button */}
+            {user.isAdmin && (
+                <button
+                    onClick={() => {
+                        setAdminModalMode('add')
+                        setItemToEdit(null)
+                        setIsAdminModalOpen(true)
+                    }}
+                    className="absolute bottom-6 right-6 w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-400 hover:scale-110 transition-all z-40 text-white"
+                    style={{ boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)' }}
+                >
+                    <Plus size={28} />
+                </button>
+            )}
+
+            {/* Admin Modal */}
+            {isAdminModalOpen && (
+                <AdminItemModal
+                    mode={adminModalMode}
+                    initialData={itemToEdit}
+                    onClose={() => setIsAdminModalOpen(false)}
+                    onSuccess={loadItems}
+                />
+            )}
+
         </div>
     )
 }

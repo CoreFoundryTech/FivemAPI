@@ -11,6 +11,7 @@ local function toggleNuiFrame(shouldShow)
 end
 
 RegisterCommand('openshop', function()
+    print('[Caserio] /openshop executed. Triggering server event...')
     -- Request authoritative data from server
     TriggerServerEvent('caserio_marketplace:requestOpenShop')
 end)
@@ -207,3 +208,35 @@ RegisterNetEvent('caserio_marketplace:receiveMyWeapons', function(weapons)
         data = weapons
     })
 end)
+
+-- ============================================
+-- DYNAMIC SHOP CALLBACKS
+-- ============================================
+
+RegisterNUICallback('getShopItems', function(_, cb)
+    QBCore.Functions.TriggerCallback('caserio_shop:getShopItems', function(items)
+        cb(items)
+    end)
+end)
+
+RegisterNUICallback('addShopItem', function(data, cb)
+    TriggerServerEvent('caserio_shop:addItem', data)
+    cb({})
+end)
+
+RegisterNUICallback('editShopItem', function(data, cb)
+    TriggerServerEvent('caserio_shop:editItem', data)
+    cb({})
+end)
+
+RegisterNUICallback('deleteShopItem', function(data, cb)
+    TriggerServerEvent('caserio_shop:deleteItem', data.itemId)
+    cb({})
+end)
+
+RegisterNetEvent('caserio_shop:refresh', function()
+    SendNUIMessage({
+        action = 'shopItemsUpdated'
+    })
+end)
+

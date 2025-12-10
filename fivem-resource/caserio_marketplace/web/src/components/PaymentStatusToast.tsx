@@ -80,9 +80,8 @@ export const PaymentStatusToast = () => {
                 borderRadius: '12px',
                 padding: '16px 20px',
                 minWidth: '280px',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
                 transform: 'translateZ(0)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
             }}
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

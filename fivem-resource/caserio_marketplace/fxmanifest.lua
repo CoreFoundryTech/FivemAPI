@@ -9,7 +9,12 @@ shared_script 'config.lua'
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
-    'server/main.lua'
+    'server/core.lua',
+    'server/utils.lua',
+    'server/transactions.lua',
+    'server/coins.lua',
+    'server/shop.lua',
+    'server/marketplace.lua'
 }
 
 client_scripts {

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useNuiEvent } from "../hooks/useNuiEvent";
-// import { fetchNui } from "../utils/fetchNui";
+import { fetchNui } from "../utils/fetchNui";
 import { isEnvBrowser } from "../utils/misc";
 
 const VisibilityContext = createContext({
@@ -26,7 +26,7 @@ export const VisibilityProvider: React.FC<{ children: React.ReactNode }> = ({
         const keyHandler = (e: KeyboardEvent) => {
             if (["Escape"].includes(e.code)) {
                 if (!isEnvBrowser()) {
-                    import('../utils/fetchNui').then(({ fetchNui }) => fetchNui("hideFrame"))
+                    fetchNui("hideFrame")
                 }
                 else setVisible(false);
             }
