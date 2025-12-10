@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Users, Loader2 } from 'lucide-react'
+import { Plus, Search, Users, Loader2, ArrowUpDown } from 'lucide-react'
 import { useLocales } from '../hooks/useLocales'
 import { useAppStore } from '../store/useAppStore'
 import { fetchNui } from '../utils/fetchNui'
@@ -38,6 +38,9 @@ interface Weapon {
     attachments?: string[]
 }
 
+type SortOption = 'newest' | 'price_asc' | 'price_desc'
+type FilterType = 'all' | 'vehicle' | 'weapon'
+
 export const MarketplaceView = () => {
     const { t } = useLocales()
     const { user } = useAppStore()
@@ -48,6 +51,10 @@ export const MarketplaceView = () => {
     const [myListings, setMyListings] = useState<Listing[]>([])
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<'browse' | 'sell'>('browse')
+
+    // Filters & Sorting
+    const [filterType, setFilterType] = useState<FilterType>('all')
+    const [sortOrder, setSortOrder] = useState<SortOption>('newest')
 
     // Modals
     const [showSellVehicleModal, setShowSellVehicleModal] = useState(false)
@@ -143,22 +150,35 @@ export const MarketplaceView = () => {
         }
     }
 
-    const filteredListings = listings.filter(item => {
-        const itemData = parseItemData(item.item_data)
-        const searchLower = searchTerm.toLowerCase()
-        return (
-            (itemData.model?.toLowerCase().includes(searchLower) || false) ||
-            (itemData.label?.toLowerCase().includes(searchLower) || false) ||
-            (itemData.plate?.toLowerCase().includes(searchLower) || false) ||
-            (item.seller_name?.toLowerCase().includes(searchLower) || false)
-        )
-    })
+    // Advanced Filtering and Sorting Logic
+    const filteredListings = listings
+        .filter(item => {
+            // Type Filter
+            if (filterType !== 'all' && item.type !== filterType) return false
+
+            // Search Filter
+            const itemData = parseItemData(item.item_data)
+            const searchLower = searchTerm.toLowerCase()
+            return (
+                (itemData.model?.toLowerCase().includes(searchLower) || false) ||
+                (itemData.label?.toLowerCase().includes(searchLower) || false) ||
+                (itemData.plate?.toLowerCase().includes(searchLower) || false) ||
+                (item.seller_name?.toLowerCase().includes(searchLower) || false)
+            )
+        })
+        .sort((a, b) => {
+            if (sortOrder === 'price_asc') return a.price - b.price
+            if (sortOrder === 'price_desc') return b.price - a.price
+            // Default: newest (created_at desc) - assuming higher ID is newer if created_at string compare fails, 
+            // but usually ISO strings sort correctly. SQL already sorts by newest so this preserves it.
+            return 0
+        })
 
     const vehicleListings = myListings.filter(l => l.type === 'vehicle' && l.status === 'ACTIVE')
     const weaponListings = myListings.filter(l => l.type === 'weapon' && l.status === 'ACTIVE')
 
     return (
-        <div className="space-y-6 h-full flex flex-col">
+        <div className="space-y-6 h-full flex flex-col relative">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -196,17 +216,17 @@ export const MarketplaceView = () => {
 
             {/* Sell Tabs */}
             {activeTab === 'sell' && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 animate-fade-in-down">
                     <button
                         onClick={() => {
                             setShowSellVehicleModal(true)
                             fetchNui('getMyVehicles', {})
                             fetchNui('getMyListings', {})
                         }}
-                        className="px-4 py-2 rounded-xl transition-all"
+                        className="px-4 py-2 rounded-xl transition-all hover:brightness-110"
                         style={{ background: 'rgba(59,130,246,1)', color: '#fff' }}
                     >
-                        Vehículos
+                        Vehículos ({vehicleListings.length})
                     </button>
                     <button
                         onClick={() => {
@@ -214,32 +234,61 @@ export const MarketplaceView = () => {
                             fetchNui('getMyWeapons', {})
                             fetchNui('getMyListings', {})
                         }}
-                        className="px-4 py-2 rounded-xl transition-all"
+                        className="px-4 py-2 rounded-xl transition-all hover:brightness-110"
                         style={{ background: 'rgba(239,68,68,1)', color: '#fff' }}
                     >
-                        Armas
+                        Armas ({weaponListings.length})
                     </button>
                 </div>
             )}
 
-            {/* Search */}
-            <div className="relative">
-                <Search className="absolute left-4 top-1/2" style={{ transform: 'translateY(-50%)', color: '#6b7280' }} size={20} />
-                <input
-                    type="text"
-                    placeholder={t.marketplace.search_placeholder}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none"
-                    style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                    }}
-                />
+            {/* Filters & Search Bar */}
+            <div className="flex flex-col md:flex-row gap-4 items-center bg-white/5 p-3 rounded-2xl border border-white/5">
+                <div className="relative flex-1 w-full">
+                    <Search className="absolute left-4 top-1/2" style={{ transform: 'translateY(-50%)', color: '#6b7280' }} size={20} />
+                    <input
+                        type="text"
+                        placeholder={t.marketplace.search_placeholder}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full rounded-xl py-2 pl-12 pr-4 text-white focus:outline-none bg-transparent"
+                    />
+                </div>
+
+                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                    <div className="flex items-center bg-black/20 rounded-xl p-1 gap-1">
+                        {(['all', 'vehicle', 'weapon'] as const).map((type) => (
+                            <button
+                                key={type}
+                                onClick={() => setFilterType(type)}
+                                className={`px-3 py-1.5 rounded-lg text-sm transition-all capitalize ${filterType === type
+                                    ? 'bg-white/10 text-white font-medium shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-300'
+                                    }`}
+                            >
+                                {type === 'all' ? 'Todos' : type === 'vehicle' ? 'Vehículos' : 'Armas'}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value as SortOption)}
+                            className="bg-black/20 text-white text-sm rounded-xl px-3 py-2 border-none focus:ring-0 outline-none cursor-pointer appearance-none"
+                            style={{ backgroundImage: 'none' }}
+                        >
+                            <option value="newest">Más Reciente</option>
+                            <option value="price_asc">Precio: Menor a Mayor</option>
+                            <option value="price_desc">Precio: Mayor a Menor</option>
+                        </select>
+                        <ArrowUpDown size={16} className="text-gray-400 -ml-8 pointer-events-none" />
+                    </div>
+                </div>
             </div>
 
             {/* Listings Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-20 custom-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-20 custom-scrollbar flex-1">
                 {loading ? (
                     <div className="col-span-full flex items-center justify-center py-20">
                         <Loader2 className="animate-spin text-blue-400" size={32} />
@@ -247,8 +296,8 @@ export const MarketplaceView = () => {
                 ) : filteredListings.length === 0 ? (
                     <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500">
                         <Users size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                        <p style={{ fontSize: '18px' }}>No hay ofertas disponibles</p>
-                        <p style={{ fontSize: '14px' }}>Las ofertas de otros jugadores aparecerán aquí</p>
+                        <p style={{ fontSize: '18px' }}>No hay resultados</p>
+                        <p style={{ fontSize: '14px' }}>Prueba ajustando los filtros</p>
                     </div>
                 ) : (
                     filteredListings.map((listing) => (
@@ -259,6 +308,13 @@ export const MarketplaceView = () => {
                         />
                     ))
                 )}
+            </div>
+
+            {/* Footer / Branding */}
+            <div className="absolute bottom-4 right-4 pointer-events-none">
+                <span className="text-xs text-white/20 font-mono font-bold tracking-widest">
+                    v1.0 by Caserio RP
+                </span>
             </div>
 
             {/* Modals */}

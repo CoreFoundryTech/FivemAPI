@@ -8,7 +8,7 @@ local QBCore = Caserio.QBCore
 RegisterNetEvent('caserio_marketplace:getActiveListings', function()
     local src = source
     local listings = MySQL.query.await([[
-        SELECT * FROM caserio_listings WHERE status = 'ACTIVE' ORDER BY created_at DESC
+        SELECT * FROM caserio_listings WHERE status = 'ACTIVE' ORDER BY created_at DESC LIMIT 50
     ]])
     TriggerClientEvent('caserio_marketplace:receiveListings', src, listings or {})
 end)

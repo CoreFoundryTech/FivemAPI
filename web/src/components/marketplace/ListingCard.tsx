@@ -1,4 +1,5 @@
-import { Car, Crosshair, ShoppingCart } from 'lucide-react'
+import { Car, Crosshair, ShoppingCart, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 
 interface ListingCardProps {
     listing: {
@@ -12,6 +13,16 @@ interface ListingCardProps {
 }
 
 export const ListingCard = ({ listing, onBuyClick }: ListingCardProps) => {
+    const [isLoading, setIsLoading] = useState(false)
+
+    const handleBuy = () => {
+        setIsLoading(true)
+        onBuyClick()
+        // Reset loading state after a delay if the parent component doesn't unmount this card immediately
+        // In a real app, this should probably be controlled by the parent, but for simple feedback this works
+        setTimeout(() => setIsLoading(false), 2000)
+    }
+
     const parseItemData = (data: string) => {
         try {
             return JSON.parse(data)
@@ -25,7 +36,7 @@ export const ListingCard = ({ listing, onBuyClick }: ListingCardProps) => {
 
     return (
         <div
-            className="rounded-xl p-4 flex gap-4 border border-white/10"
+            className="rounded-xl p-4 flex gap-4 border border-white/10 transition-all hover:bg-white/5"
             style={{ background: 'rgba(255, 255, 255, 0.05)' }}
         >
             <div
@@ -66,12 +77,13 @@ export const ListingCard = ({ listing, onBuyClick }: ListingCardProps) => {
                         {listing.price.toLocaleString()} 🪙
                     </span>
                     <button
-                        onClick={onBuyClick}
-                        className="px-3 py-2 rounded-lg flex items-center gap-2"
+                        onClick={handleBuy}
+                        disabled={isLoading}
+                        className="px-3 py-2 rounded-lg flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: isVehicle ? 'rgba(59, 130, 246, 1)' : 'rgba(239, 68, 68, 1)' }}
                     >
-                        <ShoppingCart size={16} />
-                        Comprar
+                        {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} />}
+                        {isLoading ? 'Procesando...' : 'Comprar'}
                     </button>
                 </div>
             </div>
