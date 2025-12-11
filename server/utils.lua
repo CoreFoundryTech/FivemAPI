@@ -33,7 +33,10 @@ function Caserio.Functions.UpdateClientUI(Player)
     if not Player then return end
     local src = Player.PlayerData.source
     
-    local isAdmin = Caserio.QBCore.Functions.HasPermission(src, 'admin')
+    -- Use ACE system for admin check (consistent with requestOpenShop)
+    local isAdmin = IsPlayerAceAllowed(src, 'command') or 
+                    IsPlayerAceAllowed(src, 'admin') or 
+                    IsPlayerAceAllowed(src, 'god')
     
     TriggerClientEvent('caserio_marketplace:updateData', src, {
         name = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname,
@@ -65,11 +68,37 @@ RegisterNetEvent('caserio_marketplace:requestOpenShop', function()
 
     local Player = Caserio.QBCore.Functions.GetPlayer(src)
     if Player then
-        local group = Caserio.QBCore.Functions.GetPermission(src)
-        print('[Caserio] Player Group detected: ' .. tostring(group))
-
-        local isAdmin = Caserio.QBCore.Functions.HasPermission(src, 'admin') or Caserio.QBCore.Functions.HasPermission(src, 'god')
-        print('[Caserio] Player found. IsAdmin (admin/god): ' .. tostring(isAdmin) .. '. Opening UI...')
+        -- ══════════════════════════════════════════════════════
+        -- ADMIN CHECK usando ACE nativo de FiveM
+        -- ══════════════════════════════════════════════════════
+        local isAdmin = false
+        
+        -- Check ACE permissions directly (works with server.cfg add_ace/add_principal)
+        if IsPlayerAceAllowed(src, 'command') or 
+           IsPlayerAceAllowed(src, 'admin') or 
+           IsPlayerAceAllowed(src, 'god') then
+            isAdmin = true
+            print('[Caserio] ✅ Admin detected via ACE permissions')
+        end
+        
+        -- Fallback: Check QBCore permissions (for compatibility)
+        if not isAdmin then
+            local hasPermAdmin = Caserio.QBCore.Functions.HasPermission(src, 'admin')
+            local hasPermGod = Caserio.QBCore.Functions.HasPermission(src, 'god')
+            
+            if hasPermAdmin or hasPermGod then
+                isAdmin = true
+                print('[Caserio] ✅ Admin detected via QBCore HasPermission')
+            end
+        end
+        
+        -- Final debug output
+        local identifiers = GetPlayerIdentifiers(src)
+        print('[Caserio] ═══════════════════════════════════════')
+        print('[Caserio] Source: ' .. src)
+        print('[Caserio] Identifiers: ' .. json.encode(identifiers))
+        print('[Caserio] IsAdmin: ' .. tostring(isAdmin))
+        print('[Caserio] ═══════════════════════════════════════')
         
         TriggerClientEvent('caserio_marketplace:openShopUI', src, {
             name = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname,

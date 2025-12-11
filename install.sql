@@ -62,23 +62,10 @@ INSERT INTO `shop_items` (`item_id`, `type`, `label`, `price`, `model`, `categor
 SELECT 'pistol_gold', 'weapon', 'Pistola Dorada', 5000, 'weapon_pistol', 'pistols', '{"tint": 5}'
 WHERE NOT EXISTS (SELECT 1 FROM `shop_items` WHERE `item_id` = 'pistol_gold');
 
--- 4. PLAYER COINS SUPPORT
--- Compatible with MySQL 5.7+ and MariaDB
--- Checks if column exists before adding to avoid errors
-SET @dbname = DATABASE();
-SET @tablename = "players";
-SET @columnname = "coins";
-SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  "SELECT 1",
-  CONCAT("ALTER TABLE ", @tablename, " ADD ", @columnname, " INT DEFAULT 0;")
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
+-- 4. PLAYER COINS SUPPORT (JSON UPDATE)
+-- Esto inyecta "coins": 0 en la columna JSON 'money' de los jugadores si no existe.
+-- Requiere MySQL 5.7+ o MariaDB 10.2+
+
+UPDATE `players` 
+SET `money` = JSON_SET(`money`, '$.coins', 0) 
+WHERE JSON_EXTRACT(`money`, '$.coins') IS NULL;

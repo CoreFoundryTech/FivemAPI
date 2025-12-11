@@ -8,15 +8,12 @@ Config.ExchangeRate = 1000 -- $1000 Dinero Juego = 1 Caserio Coin
 
 -- Paquetes de Monedas (Real Money -> Coins)
 Config.CoinPackages = {
-    ['coins_5000'] = {
-        label = "Paquete Básico",
-        price = 5, -- USD
-        reward_coins = 5000,
-        description = "5,000 Caserio Coins"
-    },
-    ['coins_12000'] = {
-        label = "Paquete Popular",
-        price = 10, -- USD
+    ['caseriomarket'] = {
+        app = 'caseriomarket',
+        color = '#2563eb',
+        icon = 'marketplace_icon.svg',
+        tooltipText = 'Marketplace',
+        tooltipPos = 'bottom',
         reward_coins = 12000,
         description = "12,000 Caserio Coins (+2000 Bonus)",
         tebex_package_id = 7158766 -- ID real de Tebex

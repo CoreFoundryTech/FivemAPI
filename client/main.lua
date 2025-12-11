@@ -16,6 +16,11 @@ RegisterCommand('openshop', function()
     TriggerServerEvent('caserio_marketplace:requestOpenShop')
 end)
 
+-- Public event for Phone/Export usage
+RegisterNetEvent('caserio_marketplace:client:open', function()
+    TriggerServerEvent('caserio_marketplace:requestOpenShop')
+end)
+
 RegisterNetEvent('caserio_marketplace:openShopUI', function(data)
     -- Update UI with server data
     SendNUIMessage({
@@ -23,7 +28,8 @@ RegisterNetEvent('caserio_marketplace:openShopUI', function(data)
         data = {
             name = data.name,
             money = data.money,
-            coins = data.coins
+            coins = data.coins,
+            isAdmin = data.isAdmin  -- Pass admin status to frontend
         }
     })
     
@@ -32,8 +38,51 @@ end)
 
 RegisterNUICallback('hideFrame', function(_, cb)
     toggleNuiFrame(false)
+    
+    -- Notify phone if it exists
+    local phoneResource = GetResourceState('caserio-phone')
+    if phoneResource == 'started' or phoneResource == 'starting' then
+        exports['caserio-phone']:MarketplaceClosed()
+    end
+    
     cb({})
 end)
+
+-- ============================================
+-- SHOP ITEM MANAGEMENT (Admin)
+-- ============================================
+
+RegisterNUICallback('getShopItems', function(_, cb)
+    QBCore.Functions.TriggerCallback('caserio_shop:getShopItems', function(items)
+        cb(items or {})
+    end)
+end)
+
+RegisterNUICallback('addShopItem', function(data, cb)
+    TriggerServerEvent('caserio_shop:addItem', data)
+    cb('ok')
+end)
+
+RegisterNUICallback('updateShopItem', function(data, cb)
+    TriggerServerEvent('caserio_shop:editItem', data)
+    cb('ok')
+end)
+
+RegisterNUICallback('deleteShopItem', function(data, cb)
+    TriggerServerEvent('caserio_shop:deleteItem', data.itemId)
+    cb('ok')
+end)
+
+-- Refresh shop when server sends update
+RegisterNetEvent('caserio_shop:refresh', function()
+    SendNUIMessage({
+        action = 'shopItemsUpdated'
+    })
+end)
+
+-- ============================================
+-- PURCHASE CALLBACKS
+-- ============================================
 
 -- Get store URL for package
 RegisterNUICallback('getStoreUrl', function(data, cb)

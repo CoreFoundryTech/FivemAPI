@@ -17,7 +17,8 @@ end)
 -- Add new item (Admin only)
 RegisterNetEvent('caserio_shop:addItem', function(data)
     local src = source
-    if not QBCore.Functions.HasPermission(src, 'admin') then 
+    -- Check ACE permissions
+    if not (IsPlayerAceAllowed(src, 'command') or IsPlayerAceAllowed(src, 'admin') or IsPlayerAceAllowed(src, 'god')) then 
         TriggerClientEvent('QBCore:Notify', src, 'No tienes permisos.', 'error')
         return 
     end
@@ -46,7 +47,7 @@ end)
 -- Edit item (Admin only)
 RegisterNetEvent('caserio_shop:editItem', function(data)
     local src = source
-    if not QBCore.Functions.HasPermission(src, 'admin') then return end
+    if not (IsPlayerAceAllowed(src, 'command') or IsPlayerAceAllowed(src, 'admin') or IsPlayerAceAllowed(src, 'god')) then return end
 
     MySQL.update.await([[
         UPDATE shop_items 
@@ -68,7 +69,7 @@ end)
 -- Delete item (Admin only)
 RegisterNetEvent('caserio_shop:deleteItem', function(itemId)
     local src = source
-    if not QBCore.Functions.HasPermission(src, 'admin') then return end
+    if not (IsPlayerAceAllowed(src, 'command') or IsPlayerAceAllowed(src, 'admin') or IsPlayerAceAllowed(src, 'god')) then return end
 
     MySQL.update.await('DELETE FROM shop_items WHERE item_id = ?', {itemId})
     

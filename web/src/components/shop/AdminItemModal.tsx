@@ -12,6 +12,7 @@ interface AdminItemModalProps {
 
 export const AdminItemModal = ({ mode, initialData, onClose, onSuccess }: AdminItemModalProps) => {
     // const { t } = useLocales() // Unused for now
+    const [isSubmitting, setIsSubmitting] = useState(false)
     const [formData, setFormData] = useState({
         label: '',
         model: '',
@@ -40,6 +41,10 @@ export const AdminItemModal = ({ mode, initialData, onClose, onSuccess }: AdminI
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
+        // Prevent double submission
+        if (isSubmitting) return
+        setIsSubmitting(true)
+
         const itemData: any = {}
         if (formData.type === 'weapon') {
             if (formData.tint > 0) itemData.tint = formData.tint
@@ -56,14 +61,20 @@ export const AdminItemModal = ({ mode, initialData, onClose, onSuccess }: AdminI
             item_data: itemData
         }
 
-        if (mode === 'add') {
-            await fetchNui('addShopItem', payload)
-        } else {
-            await fetchNui('editShopItem', payload)
-        }
+        try {
+            if (mode === 'add') {
+                await fetchNui('addShopItem', payload)
+            } else {
+                await fetchNui('updateShopItem', payload)
+            }
 
-        onSuccess()
-        onClose()
+            onSuccess()
+            onClose()
+        } catch (error) {
+            console.error('Error submitting item:', error)
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -183,10 +194,17 @@ export const AdminItemModal = ({ mode, initialData, onClose, onSuccess }: AdminI
 
                     <button
                         type="submit"
-                        className="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl font-bold hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+                        disabled={isSubmitting}
+                        className={`w-full mt-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg ${isSubmitting
+                                ? 'bg-gray-600 cursor-not-allowed opacity-50'
+                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/20'
+                            }`}
                     >
                         <Save size={18} />
-                        {mode === 'add' ? 'Crear Item' : 'Guardar Cambios'}
+                        {isSubmitting
+                            ? 'Guardando...'
+                            : (mode === 'add' ? 'Crear Item' : 'Guardar Cambios')
+                        }
                     </button>
                 </form>
             </div>
