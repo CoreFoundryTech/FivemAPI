@@ -1,14 +1,8 @@
 import { create } from 'zustand'
 import { fetchNui } from '../utils/fetchNui'
+import type { AppConfig, UserState, ShopItem } from '../types'
 
 export type Tab = 'home' | 'coins' | 'shop' | 'exchange' | 'marketplace'
-
-interface UserState {
-    coins: number
-    money: number
-    name: string
-    isAdmin?: boolean
-}
 
 interface AppState {
     currentTab: Tab
@@ -17,8 +11,11 @@ interface AppState {
     user: UserState
     setUser: (user: Partial<UserState>) => void
 
-    addToCart: (item: any) => void
-    buyItem: (item: any) => void
+    config: AppConfig
+    setConfig: (config: Partial<AppConfig>) => void
+
+    addToCart: (item: ShopItem) => void
+    buyItem: (item: ShopItem) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -33,13 +30,18 @@ export const useAppStore = create<AppState>((set) => ({
     },
     setUser: (userData) => set((state) => ({ user: { ...state.user, ...userData } })),
 
+    config: {
+        exchangeRate: 1000 // Default value, will be overridden by server
+    },
+    setConfig: (configData) => set((state) => ({ config: { ...state.config, ...configData } })),
+
     addToCart: (item) => {
         // Direct purchase in this MVP
         fetchNui('buyItem', {
             itemId: item.id,
             category: item.category,
             price: item.price,
-            label: item.name
+            label: item.label
         })
     },
 
@@ -48,7 +50,7 @@ export const useAppStore = create<AppState>((set) => ({
         fetchNui('buyItem', {
             id: item.id,
             price: item.price,
-            label: item.label || item.name
+            label: item.label
         })
     },
 }))

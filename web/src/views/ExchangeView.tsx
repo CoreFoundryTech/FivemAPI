@@ -4,15 +4,14 @@ import { useAppStore } from '../store/useAppStore'
 import { useLocales } from '../hooks/useLocales'
 import { fetchNui } from '../utils/fetchNui'
 
-// Exchange rate from config - should match server config
-const EXCHANGE_RATE = 1000
-
 export const ExchangeView = () => {
-    const { user } = useAppStore()
+    const { user, config } = useAppStore()
     const { t } = useLocales()
     const [amount, setAmount] = useState(0)
 
-    const coinsToReceive = Math.floor(amount / EXCHANGE_RATE)
+    // Use dynamic exchange rate from config, with fallback
+    const exchangeRate = config.exchangeRate || 1000
+    const coinsToReceive = Math.floor(amount / exchangeRate)
 
     return (
         <div className="space-y-6">

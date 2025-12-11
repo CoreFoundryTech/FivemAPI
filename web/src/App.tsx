@@ -22,12 +22,16 @@ import './index.css'
 import { useState, useEffect } from 'react'
 
 function App() {
-  const { currentTab, setUser } = useAppStore()
+  const { currentTab, setUser, setConfig } = useAppStore()
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [displayedTab, setDisplayedTab] = useState(currentTab)
 
   useNuiEvent('updatePlayerData', (data: any) => {
     setUser(data)
+    // Update config if provided
+    if (data.config) {
+      setConfig(data.config)
+    }
   })
 
   // Handle openUrl from Lua client - Use FiveM native

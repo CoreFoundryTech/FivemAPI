@@ -29,7 +29,10 @@ RegisterNetEvent('caserio_marketplace:openShopUI', function(data)
             name = data.name,
             money = data.money,
             coins = data.coins,
-            isAdmin = data.isAdmin  -- Pass admin status to frontend
+            isAdmin = data.isAdmin,  -- Pass admin status to frontend
+            config = {
+                exchangeRate = Config.ExchangeRate  -- Dynamic config
+            }
         }
     })
     
@@ -159,7 +162,10 @@ RegisterNetEvent('caserio_marketplace:updateData', function(data)
             data = {
                 name = name,
                 money = money,
-                coins = coins
+                coins = coins,
+                config = {
+                    exchangeRate = Config.ExchangeRate
+                }
             }
         })
     end

@@ -199,12 +199,26 @@ RegisterNetEvent('caserio_marketplace:buyListing', function(data)
     local buyerCitizenid = Player.PlayerData.citizenid
     local buyerLicense = QBCore.Functions.GetIdentifier(src, 'license')
     
+    -- RACE CONDITION FIX: Intentar marcar como SOLD de forma atómica ANTES de procesar pago
+    -- Si affectedRows es 0, significa que otro comprador ganó la carrera
+    local affectedRows = MySQL.update.await([[
+        UPDATE caserio_listings 
+        SET status = 'SOLD', sold_at = NOW(), buyer_citizenid = ? 
+        WHERE id = ? AND status = 'ACTIVE'
+    ]], {buyerCitizenid, listingId})
+    
+    if affectedRows == 0 then
+        TriggerClientEvent('QBCore:Notify', src, 'Este item ya ha sido vendido o no está disponible.', 'error')
+        return
+    end
+    
+    -- Ahora que tenemos el bloqueo exclusivo, obtener los datos del listing
     local listing = MySQL.query.await([[
-        SELECT * FROM caserio_listings WHERE id = ? AND status = 'ACTIVE'
+        SELECT * FROM caserio_listings WHERE id = ?
     ]], {listingId})
     
     if not listing or #listing == 0 then
-        TriggerClientEvent('QBCore:Notify', src, 'Este item ya no está disponible.', 'error')
+        TriggerClientEvent('QBCore:Notify', src, 'Error al obtener información del listing.', 'error')
         return
     end
     
@@ -214,11 +228,15 @@ RegisterNetEvent('caserio_marketplace:buyListing', function(data)
     local itemData = json.decode(item.item_data)
     
     if sellerCitizenid == buyerCitizenid then
+        -- Revertir el UPDATE (rollback manual)
+        MySQL.update.await('UPDATE caserio_listings SET status = "ACTIVE", buyer_citizenid = NULL, sold_at = NULL WHERE id = ?', {listingId})
         TriggerClientEvent('QBCore:Notify', src, 'No puedes comprar tu propia publicación.', 'error')
         return
     end
     
     if Player.Functions.GetMoney('coins') < price then
+        -- Revertir el UPDATE (rollback manual)
+        MySQL.update.await('UPDATE caserio_listings SET status = "ACTIVE", buyer_citizenid = NULL, sold_at = NULL WHERE id = ?', {listingId})
         TriggerClientEvent('QBCore:Notify', src, 'No tienes suficientes coins.', 'error')
         return
     end
@@ -235,6 +253,8 @@ RegisterNetEvent('caserio_marketplace:buyListing', function(data)
     
     local itemName = itemData.model or itemData.label or itemData.item
     if not Player.Functions.RemoveMoney('coins', price, 'Compra P2P: ' .. itemName) then
+        -- Revertir el UPDATE (rollback manual)
+        MySQL.update.await('UPDATE caserio_listings SET status = "ACTIVE", buyer_citizenid = NULL, sold_at = NULL WHERE id = ?', {listingId})
         Caserio.Functions.FailTransaction(txnId, 'Error al quitar coins')
         TriggerClientEvent('QBCore:Notify', src, 'Error al procesar pago.', 'error')
         return
@@ -284,10 +304,7 @@ RegisterNetEvent('caserio_marketplace:buyListing', function(data)
         TriggerClientEvent('QBCore:Notify', src, '¡Compraste ' .. itemData.label .. '!', 'success')
     end
     
-    MySQL.update.await([[
-        UPDATE caserio_listings SET status = 'SOLD', sold_at = NOW(), buyer_citizenid = ? WHERE id = ?
-    ]], {buyerCitizenid, listingId})
-    
+    -- Ya marcamos como SOLD al inicio (atomicidad para evitar race condition)
     Caserio.Functions.CompleteTransaction(txnId)
     
     Caserio.Functions.SendPaymentStatus(src, 'completed', {txnId = txnId, amount = price, message = '¡Compra completada!'})

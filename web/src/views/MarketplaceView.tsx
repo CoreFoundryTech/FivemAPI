@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Users, Loader2, ArrowUpDown } from 'lucide-react'
+import { Plus, Search, Users, ArrowUpDown } from 'lucide-react'
 import { useLocales } from '../hooks/useLocales'
 import { useAppStore } from '../store/useAppStore'
 import { fetchNui } from '../utils/fetchNui'
@@ -10,6 +10,7 @@ import {
     ConfirmPurchaseModal,
     PlateChangeModal
 } from '../components/marketplace'
+import { SkeletonCard } from '../components/common/SkeletonCard'
 
 interface Listing {
     id: number
@@ -290,9 +291,12 @@ export const MarketplaceView = () => {
             {/* Listings Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-20 custom-scrollbar flex-1">
                 {loading ? (
-                    <div className="col-span-full flex items-center justify-center py-20">
-                        <Loader2 className="animate-spin text-blue-400" size={32} />
-                    </div>
+                    // Replace spinner with skeleton cards
+                    <>
+                        {[...Array(6)].map((_, i) => (
+                            <SkeletonCard key={i} />
+                        ))}
+                    </>
                 ) : filteredListings.length === 0 ? (
                     <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-500">
                         <Users size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />

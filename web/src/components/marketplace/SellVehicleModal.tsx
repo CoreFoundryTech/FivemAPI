@@ -127,9 +127,33 @@ export const SellVehicleModal = ({ vehicles, activeListings, onCreateListing, on
                             className="w-full rounded-xl py-3 px-4 text-xl text-center focus:outline-none"
                             style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }}
                         />
-                        <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', textAlign: 'center' }}>
-                            Comisión: 5% (Recibirás {Math.floor(parseInt(price || '0') * 0.95).toLocaleString()} coins)
-                        </p>
+
+                        {/* Enhanced Commission Breakdown */}
+                        {price && parseInt(price) > 0 && (
+                            <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span style={{ color: '#9ca3af', fontSize: '13px' }}>Precio de lista:</span>
+                                        <span style={{ color: 'white', fontSize: '15px', fontWeight: '600' }}>
+                                            {parseInt(price).toLocaleString()} 🪙
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span style={{ color: '#ef4444', fontSize: '13px' }}>Comisión (5%):</span>
+                                        <span style={{ color: '#ef4444', fontSize: '15px', fontWeight: '600' }}>
+                                            -{Math.floor(parseInt(price) * 0.05).toLocaleString()} 🪙
+                                        </span>
+                                    </div>
+                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '8px 0' }} />
+                                    <div className="flex justify-between items-center">
+                                        <span style={{ color: '#10b981', fontSize: '14px', fontWeight: 'bold' }}>Recibirás:</span>
+                                        <span style={{ color: '#10b981', fontSize: '18px', fontWeight: 'bold' }}>
+                                            {Math.floor(parseInt(price) * 0.95).toLocaleString()} 🪙
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
