@@ -61,6 +61,18 @@ RegisterNUICallback('getShopItems', function(_, cb)
     end)
 end)
 
+RegisterNUICallback('getShopVehicles', function(_, cb)
+    QBCore.Functions.TriggerCallback('caserio_shop:getAllVehicles', function(vehicles)
+        cb(vehicles)
+    end)
+end)
+
+RegisterNUICallback('getShopWeapons', function(_, cb)
+    QBCore.Functions.TriggerCallback('caserio_shop:getAllWeapons', function(weapons)
+        cb(weapons)
+    end)
+end)
+
 RegisterNUICallback('addShopItem', function(data, cb)
     TriggerServerEvent('caserio_shop:addItem', data)
     cb('ok')
@@ -268,26 +280,7 @@ end)
 -- DYNAMIC SHOP CALLBACKS
 -- ============================================
 
-RegisterNUICallback('getShopItems', function(_, cb)
-    QBCore.Functions.TriggerCallback('caserio_shop:getShopItems', function(items)
-        cb(items)
-    end)
-end)
 
-RegisterNUICallback('addShopItem', function(data, cb)
-    TriggerServerEvent('caserio_shop:addItem', data)
-    cb({})
-end)
-
-RegisterNUICallback('editShopItem', function(data, cb)
-    TriggerServerEvent('caserio_shop:editItem', data)
-    cb({})
-end)
-
-RegisterNUICallback('deleteShopItem', function(data, cb)
-    TriggerServerEvent('caserio_shop:deleteItem', data.itemId)
-    cb({})
-end)
 
 RegisterNetEvent('caserio_shop:refresh', function()
     SendNUIMessage({

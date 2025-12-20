@@ -14,6 +14,36 @@ QBCore.Functions.CreateCallback('caserio_shop:getShopItems', function(source, cb
     cb(items or {})
 end)
 
+-- Get all server vehicles (Dynamic)
+QBCore.Functions.CreateCallback('caserio_shop:getAllVehicles', function(source, cb)
+    local vehicles = {}
+    for k, v in pairs(QBCore.Shared.Vehicles) do
+        vehicles[k] = {
+            model = v.model,
+            label = v.name,
+            brand = v.brand,
+            price = v.price,
+            category = v.category
+        }
+    end
+    cb(vehicles)
+end)
+
+-- Get all server weapons (Dynamic)
+QBCore.Functions.CreateCallback('caserio_shop:getAllWeapons', function(source, cb)
+    local weapons = {}
+    for k, v in pairs(QBCore.Shared.Weapons) do
+        weapons[k] = {
+            model = k, -- Shared.Weapons keys are the spawn names mostly, or name field
+            label = v.label,
+            description = v.description,
+            ammotype = v.ammotype or 'unknown',
+            type = v.weapon_type or 'weapon' -- Some shared files use different keys
+        }
+    end
+    cb(weapons)
+end)
+
 -- Add new item (Admin only)
 RegisterNetEvent('caserio_shop:addItem', function(data)
     local src = source
@@ -110,6 +140,11 @@ RegisterNetEvent('caserio_marketplace:buyVehicle', function(data)
     end
     
     plate = plate:upper()
+    -- PAD PLATE TO 8 CHARS (QBCore Standard)
+    if #plate < 8 then
+        plate = plate .. string.rep(" ", 8 - #plate)
+    end
+
     if not Caserio.Functions.IsPlateAvailable(plate) then
         TriggerClientEvent('QBCore:Notify', src, 'Esa patente ya está en uso.', 'error')
         return
